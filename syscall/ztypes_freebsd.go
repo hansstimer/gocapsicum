@@ -2,6 +2,7 @@ package syscall
 
 import (
 	"syscall"
+	"unsafe"
 )
 
 const (
@@ -66,7 +67,7 @@ const (
 type CapRights uint64
 
 func Cap_new(fd int, rights uint64) (err error) {
-	_, _, e1 := RawSyscall(SYS_CAP_NEW, uintptr(fd), uintptr(rights), 0)
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_CAP_NEW, uintptr(fd), uintptr(rights), 0)
 	if e1 != 0 {
 		err = e1
 	}
@@ -74,7 +75,7 @@ func Cap_new(fd int, rights uint64) (err error) {
 }
 
 func Cap_rights_get(fd int, rightsp *CapRights) (err error) {
-	_, _, e1 := RawSyscall(SYS_CAP_RIGHTS_GET, uintptr(fd), uintptr(unsafe.Pointer(rightsp)), 0)
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_CAP_RIGHTS_GET, uintptr(fd), uintptr(unsafe.Pointer(rightsp)), 0)
 	if e1 != 0 {
 		err = e1
 	}
@@ -82,7 +83,7 @@ func Cap_rights_get(fd int, rightsp *CapRights) (err error) {
 }
 
 func Cap_enter() (err error) {
-	_, _, e1 := RawSyscall(SYS_CAP_ENTER, 0, 0, 0)
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_CAP_ENTER, 0, 0, 0)
 	if e1 != 0 {
 		err = e1
 	}
@@ -90,7 +91,25 @@ func Cap_enter() (err error) {
 }
 
 func Cap_getmode(modep *uint) (err error) {
-	_, _, e1 := RawSyscall(SYS_CAP_GETMODE, uintptr(unsafe.Pointer(modep)), 0, 0)
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_CAP_GETMODE, uintptr(unsafe.Pointer(modep)), 0, 0)
+	if e1 != 0 {
+		err = e1
+	}
+	return
+}
+
+func fcntl(fd int, cmd int, arg int) (val int, err error) {
+	r0, _, e1 := syscall.Syscall(syscall.SYS_FCNTL, uintptr(fd), uintptr(cmd), uintptr(arg))
+	val = int(r0)
+	if e1 != 0 {
+		err = e1
+	}
+	return
+}
+
+func readlen(fd int, buf *byte, nbuf int) (n int, err error) {
+	r0, _, e1 := syscall.Syscall(syscall.SYS_READ, uintptr(fd), uintptr(unsafe.Pointer(buf)), uintptr(nbuf))
+	n = int(r0)
 	if e1 != 0 {
 		err = e1
 	}

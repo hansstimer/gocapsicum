@@ -10,7 +10,8 @@ package syscall
 
 import (
 	"runtime"
-	"sync"
+	// "sync"
+	"syscall"
 	"unsafe"
 )
 
@@ -61,59 +62,59 @@ import (
 //             On Linux, could use fcntl F_DUPFD_CLOEXEC
 //             instead of the ForkLock, but only for dup(fd, -1).
 
-var ForkLock sync.RWMutex
+// var ForkLock sync.RWMutex
 
-// StringSlicePtr is deprecated. Use SlicePtrFromStrings instead.
-// If any string contains a NUL byte this function panics instead
-// of returning an error.
-func StringSlicePtr(ss []string) []*byte {
-	bb := make([]*byte, len(ss)+1)
-	for i := 0; i < len(ss); i++ {
-		bb[i] = StringBytePtr(ss[i])
-	}
-	bb[len(ss)] = nil
-	return bb
-}
+// // StringSlicePtr is deprecated. Use SlicePtrFromStrings instead.
+// // If any string contains a NUL byte this function panics instead
+// // of returning an error.
+// func StringSlicePtr(ss []string) []*byte {
+// 	bb := make([]*byte, len(ss)+1)
+// 	for i := 0; i < len(ss); i++ {
+// 		bb[i] = StringBytePtr(ss[i])
+// 	}
+// 	bb[len(ss)] = nil
+// 	return bb
+// }
 
-// SlicePtrFromStrings converts a slice of strings to a slice of
-// pointers to NUL-terminated byte slices. If any string contains
-// a NUL byte, it returns (nil, EINVAL).
-func SlicePtrFromStrings(ss []string) ([]*byte, error) {
-	var err error
-	bb := make([]*byte, len(ss)+1)
-	for i := 0; i < len(ss); i++ {
-		bb[i], err = BytePtrFromString(ss[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	bb[len(ss)] = nil
-	return bb, nil
-}
+// // SlicePtrFromStrings converts a slice of strings to a slice of
+// // pointers to NUL-terminated byte slices. If any string contains
+// // a NUL byte, it returns (nil, EINVAL).
+// func SlicePtrFromStrings(ss []string) ([]*byte, error) {
+// 	var err error
+// 	bb := make([]*byte, len(ss)+1)
+// 	for i := 0; i < len(ss); i++ {
+// 		bb[i], err = BytePtrFromString(ss[i])
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 	}
+// 	bb[len(ss)] = nil
+// 	return bb, nil
+// }
 
-func CloseOnExec(fd int) { fcntl(fd, F_SETFD, FD_CLOEXEC) }
+// func CloseOnExec(fd int) { fcntl(fd, F_SETFD, FD_CLOEXEC) }
 
-func SetNonblock(fd int, nonblocking bool) (err error) {
-	flag, err := fcntl(fd, F_GETFL, 0)
-	if err != nil {
-		return err
-	}
-	if nonblocking {
-		flag |= O_NONBLOCK
-	} else {
-		flag &= ^O_NONBLOCK
-	}
-	_, err = fcntl(fd, F_SETFL, flag)
-	return err
-}
+// func SetNonblock(fd int, nonblocking bool) (err error) {
+// 	flag, err := fcntl(fd, F_GETFL, 0)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if nonblocking {
+// 		flag |= O_NONBLOCK
+// 	} else {
+// 		flag &= ^O_NONBLOCK
+// 	}
+// 	_, err = fcntl(fd, F_SETFL, flag)
+// 	return err
+// }
 
-// Credential holds user and group identities to be assumed
-// by a child process started by StartProcess.
-type Credential struct {
-	Uid    uint32   // User ID.
-	Gid    uint32   // Group ID.
-	Groups []uint32 // Supplementary group IDs.
-}
+// // Credential holds user and group identities to be assumed
+// // by a child process started by StartProcess.
+// type Credential struct {
+// 	Uid    uint32   // User ID.
+// 	Gid    uint32   // Group ID.
+// 	Groups []uint32 // Supplementary group IDs.
+// }
 
 // ProcAttr holds attributes that will be applied to a new process started
 // by StartProcess.
@@ -130,8 +131,8 @@ var zeroSysProcAttr SysProcAttr
 func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) {
 	var p [2]int
 	var n int
-	var err1 Errno
-	var wstatus WaitStatus
+	var err1 syscall.Errno
+	var wstatus syscall.WaitStatus
 
 	if attr == nil {
 		attr = &zeroProcAttr
@@ -145,15 +146,15 @@ func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) 
 	p[1] = -1
 
 	// Convert args to C form.
-	argv0p, err := BytePtrFromString(argv0)
+	argv0p, err := syscall.BytePtrFromString(argv0)
 	if err != nil {
 		return 0, err
 	}
-	argvp, err := SlicePtrFromStrings(argv)
+	argvp, err := syscall.SlicePtrFromStrings(argv)
 	if err != nil {
 		return 0, err
 	}
-	envvp, err := SlicePtrFromStrings(attr.Env)
+	envvp, err := syscall.SlicePtrFromStrings(attr.Env)
 	if err != nil {
 		return 0, err
 	}
@@ -164,14 +165,14 @@ func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) 
 
 	var chroot *byte
 	if sys.Chroot != "" {
-		chroot, err = BytePtrFromString(sys.Chroot)
+		chroot, err = syscall.BytePtrFromString(sys.Chroot)
 		if err != nil {
 			return 0, err
 		}
 	}
 	var dir *byte
 	if attr.Dir != "" {
-		dir, err = BytePtrFromString(attr.Dir)
+		dir, err = syscall.BytePtrFromString(attr.Dir)
 		if err != nil {
 			return 0, err
 		}
@@ -180,7 +181,7 @@ func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) 
 	// Acquire the fork lock so that no other threads
 	// create new fds that are not yet close-on-exec
 	// before we fork.
-	ForkLock.Lock()
+	syscall.ForkLock.Lock()
 
 	// Allocate child status pipe close on exec.
 	if err = forkExecPipe(p[:]); err != nil {
@@ -190,28 +191,28 @@ func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) 
 	// Kick off child.
 	pid, err1 = forkAndExecInChild(argv0p, argvp, envvp, chroot, dir, attr, sys, p[1])
 	if err1 != 0 {
-		err = Errno(err1)
+		err = syscall.Errno(err1)
 		goto error
 	}
-	ForkLock.Unlock()
+	syscall.ForkLock.Unlock()
 
 	// Read child error status from pipe.
-	Close(p[1])
+	syscall.Close(p[1])
 	n, err = readlen(p[0], (*byte)(unsafe.Pointer(&err1)), int(unsafe.Sizeof(err1)))
-	Close(p[0])
+	syscall.Close(p[0])
 	if err != nil || n != 0 {
 		if n == int(unsafe.Sizeof(err1)) {
-			err = Errno(err1)
+			err = syscall.Errno(err1)
 		}
 		if err == nil {
-			err = EPIPE
+			err = syscall.EPIPE
 		}
 
 		// Child failed; wait for it to exit, to make sure
 		// the zombies don't accumulate.
-		_, err1 := Wait4(pid, &wstatus, 0, nil)
-		for err1 == EINTR {
-			_, err1 = Wait4(pid, &wstatus, 0, nil)
+		_, err1 := syscall.Wait4(pid, &wstatus, 0, nil)
+		for err1 == syscall.EINTR {
+			_, err1 = syscall.Wait4(pid, &wstatus, 0, nil)
 		}
 		return 0, err
 	}
@@ -221,10 +222,10 @@ func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) 
 
 error:
 	if p[0] >= 0 {
-		Close(p[0])
-		Close(p[1])
+		syscall.Close(p[0])
+		syscall.Close(p[1])
 	}
-	ForkLock.Unlock()
+	syscall.ForkLock.Unlock()
 	return 0, err
 }
 
@@ -239,23 +240,23 @@ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle 
 	return pid, 0, err
 }
 
-// Ordinary exec.
-func Exec(argv0 string, argv []string, envv []string) (err error) {
-	argv0p, err := BytePtrFromString(argv0)
-	if err != nil {
-		return err
-	}
-	argvp, err := SlicePtrFromStrings(argv)
-	if err != nil {
-		return err
-	}
-	envvp, err := SlicePtrFromStrings(envv)
-	if err != nil {
-		return err
-	}
-	_, _, err1 := RawSyscall(SYS_EXECVE,
-		uintptr(unsafe.Pointer(argv0p)),
-		uintptr(unsafe.Pointer(&argvp[0])),
-		uintptr(unsafe.Pointer(&envvp[0])))
-	return Errno(err1)
-}
+// // Ordinary exec.
+// func Exec(argv0 string, argv []string, envv []string) (err error) {
+// 	argv0p, err := BytePtrFromString(argv0)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	argvp, err := SlicePtrFromStrings(argv)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	envvp, err := SlicePtrFromStrings(envv)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	_, _, err1 := RawSyscall(SYS_EXECVE,
+// 		uintptr(unsafe.Pointer(argv0p)),
+// 		uintptr(unsafe.Pointer(&argvp[0])),
+// 		uintptr(unsafe.Pointer(&envvp[0])))
+// 	return Errno(err1)
+// }

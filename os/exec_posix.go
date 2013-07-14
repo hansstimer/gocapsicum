@@ -7,16 +7,17 @@
 package os
 
 import (
+	mysyscall "github.com/hansstimer/gocapsicum/syscall"
 	"syscall"
 )
 
 // The only signal values guaranteed to be present on all systems
 // are Interrupt (send the process an interrupt) and Kill (force
 // the process to exit).
-var (
-	Interrupt Signal = syscall.SIGINT
-	Kill      Signal = syscall.SIGKILL
-)
+// var (
+// 	Interrupt Signal = syscall.SIGINT
+// 	Kill      Signal = syscall.SIGKILL
+// )
 
 func startProcess(name string, argv []string, attr *ProcAttr) (p *Process, err error) {
 	// If there is no SysProcAttr (ie. no Chroot or changed
@@ -53,82 +54,82 @@ func (p *Process) kill() error {
 	return p.Signal(Kill)
 }
 
-// ProcessState stores information about a process, as reported by Wait.
-type ProcessState struct {
-	pid    int                // The process's id.
-	status syscall.WaitStatus // System-dependent status info.
-	rusage *syscall.Rusage
-}
+// // ProcessState stores information about a process, as reported by Wait.
+// type ProcessState struct {
+// 	pid    int                // The process's id.
+// 	status syscall.WaitStatus // System-dependent status info.
+// 	rusage *syscall.Rusage
+// }
 
-// Pid returns the process id of the exited process.
-func (p *ProcessState) Pid() int {
-	return p.pid
-}
+// // Pid returns the process id of the exited process.
+// func (p *ProcessState) Pid() int {
+// 	return p.pid
+// }
 
-func (p *ProcessState) exited() bool {
-	return p.status.Exited()
-}
+// func (p *ProcessState) exited() bool {
+// 	return p.status.Exited()
+// }
 
-func (p *ProcessState) success() bool {
-	return p.status.ExitStatus() == 0
-}
+// func (p *ProcessState) success() bool {
+// 	return p.status.ExitStatus() == 0
+// }
 
-func (p *ProcessState) sys() interface{} {
-	return p.status
-}
+// func (p *ProcessState) sys() interface{} {
+// 	return p.status
+// }
 
-func (p *ProcessState) sysUsage() interface{} {
-	return p.rusage
-}
+// func (p *ProcessState) sysUsage() interface{} {
+// 	return p.rusage
+// }
 
-// Convert i to decimal string.
-func itod(i int) string {
-	if i == 0 {
-		return "0"
-	}
+// // Convert i to decimal string.
+// func itod(i int) string {
+// 	if i == 0 {
+// 		return "0"
+// 	}
 
-	u := uint64(i)
-	if i < 0 {
-		u = -u
-	}
+// 	u := uint64(i)
+// 	if i < 0 {
+// 		u = -u
+// 	}
 
-	// Assemble decimal in reverse order.
-	var b [32]byte
-	bp := len(b)
-	for ; u > 0; u /= 10 {
-		bp--
-		b[bp] = byte(u%10) + '0'
-	}
+// 	// Assemble decimal in reverse order.
+// 	var b [32]byte
+// 	bp := len(b)
+// 	for ; u > 0; u /= 10 {
+// 		bp--
+// 		b[bp] = byte(u%10) + '0'
+// 	}
 
-	if i < 0 {
-		bp--
-		b[bp] = '-'
-	}
+// 	if i < 0 {
+// 		bp--
+// 		b[bp] = '-'
+// 	}
 
-	return string(b[bp:])
-}
+// 	return string(b[bp:])
+// }
 
-func (p *ProcessState) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	status := p.Sys().(syscall.WaitStatus)
-	res := ""
-	switch {
-	case status.Exited():
-		res = "exit status " + itod(status.ExitStatus())
-	case status.Signaled():
-		res = "signal: " + status.Signal().String()
-	case status.Stopped():
-		res = "stop signal: " + status.StopSignal().String()
-		if status.StopSignal() == syscall.SIGTRAP && status.TrapCause() != 0 {
-			res += " (trap " + itod(status.TrapCause()) + ")"
-		}
-	case status.Continued():
-		res = "continued"
-	}
-	if status.CoreDump() {
-		res += " (core dumped)"
-	}
-	return res
-}
+// func (p *ProcessState) String() string {
+// 	if p == nil {
+// 		return "<nil>"
+// 	}
+// 	status := p.Sys().(syscall.WaitStatus)
+// 	res := ""
+// 	switch {
+// 	case status.Exited():
+// 		res = "exit status " + itod(status.ExitStatus())
+// 	case status.Signaled():
+// 		res = "signal: " + status.Signal().String()
+// 	case status.Stopped():
+// 		res = "stop signal: " + status.StopSignal().String()
+// 		if status.StopSignal() == syscall.SIGTRAP && status.TrapCause() != 0 {
+// 			res += " (trap " + itod(status.TrapCause()) + ")"
+// 		}
+// 	case status.Continued():
+// 		res = "continued"
+// 	}
+// 	if status.CoreDump() {
+// 		res += " (core dumped)"
+// 	}
+// 	return res
+// }
