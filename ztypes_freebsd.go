@@ -1,4 +1,6 @@
-package syscall
+package gocapsicum
+
+// +build freebsd
 
 import (
 	"syscall"
@@ -75,7 +77,7 @@ func Cap_new(fd int, rights uint64) (err error) {
 }
 
 func Cap_rights_get(fd int, rightsp *CapRights) (err error) {
-	_, _, e1 := syscall.RawSyscall(syscall.SYS_CAP_RIGHTS_GET, uintptr(fd), uintptr(unsafe.Pointer(rightsp)), 0)
+	_, _, e1 := syscall.RawSyscall(syscall.SYS_CAP_GETRIGHTS, uintptr(fd), uintptr(unsafe.Pointer(rightsp)), 0)
 	if e1 != 0 {
 		err = e1
 	}

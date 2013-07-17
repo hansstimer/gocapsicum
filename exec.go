@@ -5,13 +5,17 @@
 // Package exec runs external commands. It wraps os.StartProcess to make it
 // easier to remap stdin and stdout, connect I/O with pipes, and do other
 // adjustments.
-package exec
+
+// +build freebsd
+
+package gocapsicum
 
 import (
 	"bytes"
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"strconv"
 	"syscall"
 )
@@ -67,21 +71,23 @@ type Cmd struct {
 	// ExtraFiles specifies additional open files to be inherited by the
 	// new process. It does not include standard input, standard output, or
 	// standard error. If non-nil, entry i becomes file descriptor 3+i.
-	//
-	// BUG: on OS X 10.6, child processes may sometimes inherit unwanted fds.
-	// http://golang.org/issue/2603
 	ExtraFiles []*os.File
 
-	// SysProcAttr holds optional, operating system-specific attributes.
-	// Run passes it to os.StartProcess as the os.ProcAttr's Sys field.
-	SysProcAttr *syscall.SysProcAttr
+	Chroot     string              // Chroot.
+	Credential *syscall.Credential // Credential.
+	Ptrace     bool                // Enable tracing.
+	Setsid     bool                // Create session.
+	Setpgid    bool                // Set process group ID to new pid (SYSV setpgrp)
+	Setctty    bool                // Set controlling terminal to fd 0
+	Noctty     bool                // Detach fd 0 from controlling terminal
+	Capability bool                // Enable capability mode before exec child
 
 	// Process is the underlying process, once started.
-	Process *os.Process
+	Process *Process
 
 	// ProcessState contains information about an exited process,
 	// available after a call to Wait or Run.
-	ProcessState *os.ProcessState
+	ProcessState *ProcessState
 
 	err             error // last error (from LookPath, stdin, stdout, stderr)
 	finished        bool  // when Wait was called
@@ -106,7 +112,7 @@ type Cmd struct {
 // followed by the elements of arg, so arg should not include the
 // command name itself. For example, Command("echo", "hello")
 func Command(name string, arg ...string) *Cmd {
-	aname, err := LookPath(name)
+	aname, err := exec.LookPath(name)
 	if err != nil {
 		aname = name
 	}
@@ -256,12 +262,20 @@ func (c *Cmd) Start() error {
 	c.childFiles = append(c.childFiles, c.ExtraFiles...)
 
 	var err error
-	c.Process, err = os.StartProcess(c.Path, c.argv(), &os.ProcAttr{
-		Dir:   c.Dir,
-		Files: c.childFiles,
-		Env:   c.envv(),
-		Sys:   c.SysProcAttr,
+	c.Process, err = startProcess(c.Path, c.argv(), &ProcAttr{
+		Dir:        c.Dir,
+		Files:      c.childFiles,
+		Env:        c.envv(),
+		Chroot:     c.Chroot,
+		Credential: c.Credential,
+		Ptrace:     c.Ptrace,
+		Setsid:     c.Setsid,
+		Setpgid:    c.Setpgid,
+		Setctty:    c.Setctty,
+		Noctty:     c.Noctty,
+		Capability: c.Capability,
 	})
+
 	if err != nil {
 		c.closeDescriptors(c.closeAfterStart)
 		c.closeDescriptors(c.closeAfterWait)
@@ -282,7 +296,7 @@ func (c *Cmd) Start() error {
 
 // An ExitError reports an unsuccessful exit by a command.
 type ExitError struct {
-	*os.ProcessState
+	*ProcessState
 }
 
 func (e *ExitError) Error() string {
